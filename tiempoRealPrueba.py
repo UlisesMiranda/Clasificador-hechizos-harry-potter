@@ -31,21 +31,6 @@ def preprocess_audio_real_time(audio, sr=22050, max_length_mfcc=128):
         mfcc = mfcc[:, :max_length_mfcc]  # Acortar si es más largo
     return mfcc
 
-    audio = audio.astype(np.float32)  # Convertir a float32 para normalización
-    audio /= np.max(np.abs(audio))  # Normalizar entre -1 y 1
-
-    # Extraer coeficientes MFCC
-    mfcc = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=max_length_mfcc)
-    mfcc = mfcc.astype(np.float32)
-
-    # Ajustar la longitud de los MFCC
-    if mfcc.shape[1] < max_length_mfcc:
-        pad_width = max_length_mfcc - mfcc.shape[1]
-        mfcc = np.pad(mfcc, ((0, 0), (0, pad_width)), mode="constant")
-    else:
-        mfcc = mfcc[:, :max_length_mfcc]  # Acortar si es más largo
-    return mfcc
-
 
 # Función para capturar y procesar audio en tiempo real
 def capture_audio_and_predict():
