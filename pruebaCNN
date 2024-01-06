@@ -1,0 +1,142 @@
+import os
+import numpy as np
+import tensorflow as tf
+import librosa
+from sklearn.model_selection import train_test_split
+from scipy.io import wavfile
+import matplotlib.pyplot as plt
+
+# Verificar la disponibilidad de GPU
+gpus = tf.config.list_physical_devices('GPU')
+print("Num GPUs:", len(gpus))
+if gpus:
+    try:
+        # Configurar TensorFlow para usar solo la primera GPU
+        tf.config.set_visible_devices(gpus[0], 'GPU')
+        logical_gpus = tf.config.list_logical_devices('GPU')
+        print(len(gpus), "GPU física,", len(logical_gpus), "GPU lógica")
+    except RuntimeError as e:
+        print(e)
+
+# Directorio que contiene los datos de audio
+data_dir = 'audios/'
+
+# Preprocesamiento de datos de audio
+def preprocess_audio(audio_path, duration=2, sr=22050):
+    audio, _ = librosa.load(audio_path, sr=sr, duration=duration)
+
+    # Si el audio es más largo que la duración especificada, se toma la parte central
+    if len(audio) > sr * duration:
+        start = (len(audio) - sr * duration) // 2
+        audio = audio[start:start + sr * duration]
+
+    # Realizar preprocesamiento para obtener el espectrograma
+    mel_spec = librosa.feature.melspectrogram(y=audio, sr=sr)
+    log_mel_spec = librosa.power_to_db(mel_spec, ref=np.max)
+    return log_mel_spec
+
+# Carga de datos y preprocesamiento
+def load_data(data_dir):
+    X = []
+    y = []
+    test_files = []
+
+    labels = sorted(os.listdir(data_dir))
+
+    for label_id, label in enumerate(labels):
+        label_dir = os.path.join(data_dir, label)
+        files = os.listdir(label_dir)
+        np.random.shuffle(files)
+
+        split_index = int(0.8 * len(files))
+        train_files = files[:split_index]
+        test_files.extend(files[split_index:])
+
+        for audio_file in train_files:
+            audio_path = os.path.join(label_dir, audio_file)
+            rate, audio = wavfile.read(audio_path)
+            audio = audio.astype(np.float32)  # Convertir a float32 para normalización
+            audio /= np.max(np.abs(audio))  # Normalizar entre -1 y 1
+            mel_spec = librosa.feature.melspectrogram(y=audio, sr=rate)
+            X.append(mel_spec)
+            y.append(label_id)
+
+    return np.array(X), np.array(y), test_files
+
+# Obtención de los datos
+X, y, test_files = load_data(data_dir)
+
+# División de datos en conjuntos de entrenamiento y prueba
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Ajustar el tamaño de los datos para que sean compatibles con una CNN
+X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], X_train.shape[2], 1)
+X_val = X_val.reshape(X_val.shape[0], X_val.shape[1], X_val.shape[2], 1)
+
+# Definición del modelo
+model = tf.keras.Sequential([
+    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=X_train.shape[1:]),
+    tf.keras.layers.MaxPooling2D((2, 2)),
+    tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+    tf.keras.layers.MaxPooling2D((2, 2)),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(128, activation='relu'),
+    tf.keras.layers.Dense(6, activation='softmax')  # Se asume que hay 6 clases (hechizos)
+])
+
+# Compilación del modelo
+model.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Entrenamiento del modelo con datos de entrenamiento y validación
+history = model.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_val, y_val))
+
+# Carga y etiquetado de datos de prueba
+def load_test_data(data_dir, test_files):
+    X_test = []
+    y_test = []
+    labels = sorted(os.listdir(data_dir))
+
+    for audio_file in test_files:
+        for label_id, label in enumerate(labels):
+            label_dir = os.path.join(data_dir, label)
+            if audio_file in os.listdir(label_dir):
+                audio_path = os.path.join(label_dir, audio_file)
+                processed_audio = preprocess_audio(audio_path)
+                X_test.append(processed_audio)
+                y_test.append(label_id)
+                break  # Salir del bucle al encontrar la etiqueta correspondiente
+
+    return np.array(X_test), np.array(y_test)
+
+# Obtener los datos de prueba y sus etiquetas
+X_test, y_test = load_test_data(data_dir, test_files)
+
+# Ajustar el tamaño de los datos de prueba para que sean compatibles con una CNN
+X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], X_test.shape[2], 1)
+
+# Evaluación del modelo en los datos de prueba
+test_loss, test_accuracy = model.evaluate(X_test, y_test)
+print(f'Loss en datos de prueba: {test_loss}')
+print(f'Precisión en datos de prueba: {test_accuracy}')
+
+# Visualización de métricas de entrenamiento y validación
+# Gráfica de pérdida
+plt.plot(history.history['loss'], label='Pérdida en entrenamiento')
+plt.plot(history.history['val_loss'], label='Pérdida en validación')
+plt.xlabel('Épocas')
+plt.ylabel('Pérdida')
+plt.legend()
+plt.show()
+
+# Gráfica de precisión
+plt.plot(history.history['accuracy'], label='Precisión en entrenamiento')
+plt.plot(history.history['val_accuracy'], label='Precisión en validación')
+plt.xlabel('Épocas')
+plt.ylabel('Precisión')
+plt.legend()
+plt.show()
+
+# Suponiendo que 'model' es tu modelo entrenado
+model.save('modelosAprendidos/pruebaCNN')
