@@ -12,13 +12,16 @@ class AcousticFrontend:
 
     @staticmethod
     def transform(
-        sampled_signal: np.ndarray, sample_rate, classification: str, w_size_ms=0.8
-    ) -> FeatureVector:
+        sampled_signal: np.ndarray, sample_rate, classification: str, w_size_ms=0.5
+    ) -> list[FeatureVector]:
         """
         Method responsible for transforming an audio into its feature vectors
         - sampled_signal: single channel of audio to transform
         - sample_rate: sample rate
         - classification: class of the audio (word)
+
+        Returns
+        - feature_vectors: feature vectors for this audio with shape (n_ceps, n_frames)
         """
         window_size = int(sample_rate * w_size_ms)
         hop_size = window_size // 2
@@ -33,7 +36,8 @@ class AcousticFrontend:
         )
         feature_vectors = []
         for i in range(len(mfcc[0])):
-            feature_vectors.append(FeatureVector(mfcc[:, i], classification))
+            # feature_vectors.append(FeatureVector(mfcc[:, i], classification))
+            feature_vectors.append(mfcc[:, i])
 
         return feature_vectors
 
