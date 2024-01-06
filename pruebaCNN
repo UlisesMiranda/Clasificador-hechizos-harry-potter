@@ -5,7 +5,10 @@ import keras
 from scipy.io import wavfile
 import librosa
 from keras.models import Sequential
-from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
+from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from imblearn.over_sampling import RandomOverSampler
+from collections import Counter
+from keras.regularizers import l2
 
 # Directorio que contiene los datos de audio WAV
 data_dir = 'audios/'
@@ -15,7 +18,7 @@ import numpy as np
 from scipy.io import wavfile
 import librosa
 
-def load_data(data_dir, max_length_time=2, max_length_freq=128):
+def load_data(data_dir, max_length_time=2, max_length_mfcc=128):
     X = []
     y = []
 
@@ -26,70 +29,54 @@ def load_data(data_dir, max_length_time=2, max_length_freq=128):
         files = os.listdir(label_dir)
         np.random.shuffle(files)
 
-        split_index = int(0.8 * len(files))
-        train_files = files[:split_index]
+        train_files = files
 
         for audio_file in train_files:
             audio_path = os.path.join(label_dir, audio_file)
             rate, audio = wavfile.read(audio_path)
-            audio = audio[:,0]
+            audio = audio[:, 0]
 
             # Limitar la longitud de la señal al máximo deseado (2 segundos en este caso)
             max_length = int(rate * max_length_time)
             if len(audio) > max_length:
                 start = (len(audio) - max_length) // 2
                 audio = audio[start:start + max_length]
-
+                
             audio = audio.astype(np.float32)  # Convertir a float32 para normalización
             audio /= np.max(np.abs(audio))  # Normalizar entre -1 y 1
 
-            mel_spec = librosa.feature.melspectrogram(y=audio, sr=rate)
-            mel_spec = librosa.power_to_db(mel_spec, ref=np.max)  # Convertir a escala logarítmica
-            
-            # Ajustar la longitud de mel_spec
-            if mel_spec.shape[1] < max_length_freq:
-                pad_width = max_length_freq - mel_spec.shape[1]
-                mel_spec = np.pad(mel_spec, ((0, 0), (0, pad_width)), mode='constant')
-            else:
-                mel_spec = mel_spec[:, :max_length_freq]  # Acortar si es más largo
+            # Extraer coeficientes MFCC
+            mfcc = librosa.feature.mfcc(y=audio, sr=rate, n_mfcc=max_length_mfcc)
+            mfcc = mfcc.astype(np.float32)
 
-            X.append(mel_spec)
+            # Ajustar la longitud de los MFCC
+            if mfcc.shape[1] < max_length_mfcc:
+                pad_width = max_length_mfcc - mfcc.shape[1]
+                mfcc = np.pad(mfcc, ((0, 0), (0, pad_width)), mode='constant')
+            else:
+                mfcc = mfcc[:, :max_length_mfcc]  # Acortar si es más largo
+
+            X.append(mfcc)
             y.append(label_id)
 
     # Asegurar que todos los elementos de X tengan la misma forma
     max_shape = max([spec.shape[1] for spec in X])
     X = np.array([np.pad(spec, ((0, 0), (0, max_shape - spec.shape[1])), mode='constant') for spec in X])
 
-    # X = X.reshape(X.shape[0], X.shape[1], X.shape[2], 1)  # Ajustar la forma para ser compatible con la CNN
     y = np.array(y)
 
     return X, y
 
 
-# Cargar datos y preprocesar si no se han exportado previamente
-if not os.path.exists('X_train.npy'):
-    X, y = load_data(data_dir)
 
-    # Dividir datos en conjuntos de entrenamiento y prueba
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=42)
+X, y = load_data(data_dir)
 
-    # Ajustar el tamaño de los datos para que sean compatibles con una CNN
-    X_train = X_train[..., np.newaxis]
-    X_test = X_test[..., np.newaxis]
+# Dividir datos en conjuntos de entrenamiento y prueba
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=89)
 
-    # Guardar los datos preprocesados
-    np.save('X_train.npy', X_train)
-    np.save('y_train.npy', y_train)
-    np.save('X_test.npy', X_test)
-    np.save('y_test.npy', y_test)
-else:
-    # Cargar datos preprocesados
-    X_train = np.load('X_train.npy')
-    y_train = np.load('y_train.npy')
-    X_test = np.load('X_test.npy')
-    y_test = np.load('y_test.npy')
 
-# Definición del modelo CNN
+print(Counter(y_train))
+
 model = Sequential([
     Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 1)),
     MaxPooling2D((2, 2)),
@@ -98,9 +85,10 @@ model = Sequential([
     Conv2D(128, (3, 3), activation='relu'),
     MaxPooling2D((2, 2)),
     Flatten(),
-    Dense(128, activation='relu'),
+    Dense(128, activation='relu', kernel_regularizer=l2(0.001)),
+    Dropout(0.5),
     Dense(6, activation='softmax')
-])
+]) 
 
 # Compilación del modelo
 model.compile(optimizer='adam',
@@ -108,7 +96,7 @@ model.compile(optimizer='adam',
               metrics=['accuracy'])
 
 # Entrenamiento del modelo
-history = model.fit(X_train, y_train, epochs=15, batch_size=32, validation_split=0.2)
+history = model.fit(X_train, y_train, epochs=20, batch_size=32, validation_split=0.2)
 
 # Evaluación del modelo en datos de prueba
 test_loss, test_accuracy = model.evaluate(X_test, y_test)

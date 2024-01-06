@@ -8,27 +8,28 @@ import wave
 model = tf.keras.models.load_model('modeloPrueba.h5')
 
 # Preprocesamiento de audio en tiempo real
-def preprocess_audio_real_time(audio, sr=22050, max_length_freq=128):
+def preprocess_audio_real_time(audio, sr=22050, max_length_mfcc=128):
     duration = 2  # Duración deseada del audio en segundos
     # Si el audio es más largo que la duración especificada, se toma la parte central
     if len(audio) > sr * duration:
         start = (len(audio) - sr * duration) // 2
         audio = audio[start:start + sr * duration]
-        
+
     audio = audio.astype(np.float32)  # Convertir a float32 para normalización
     audio /= np.max(np.abs(audio))  # Normalizar entre -1 y 1
-    
-    # Realizar preprocesamiento para obtener el espectrograma
-    mel_spec = librosa.feature.melspectrogram(y=audio, sr=sr)
-    mel_spec = librosa.power_to_db(mel_spec, ref=np.max)
-    
-    # Ajustar la longitud de mel_spec
-    if mel_spec.shape[1] < max_length_freq:
-        pad_width = max_length_freq - mel_spec.shape[1]
-        mel_spec = np.pad(mel_spec, ((0, 0), (0, pad_width)), mode='constant')
+
+    # Extraer coeficientes MFCC
+    mfcc = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=max_length_mfcc)
+    mfcc = mfcc.astype(np.float32)
+
+    # Ajustar la longitud de los MFCC
+    if mfcc.shape[1] < max_length_mfcc:
+        pad_width = max_length_mfcc - mfcc.shape[1]
+        mfcc = np.pad(mfcc, ((0, 0), (0, pad_width)), mode='constant')
     else:
-        mel_spec = mel_spec[:, :max_length_freq]  # Acortar si es más largo
-    return mel_spec
+        mfcc = mfcc[:, :max_length_mfcc]  # Acortar si es más largo
+    return mfcc
+
 
 # Función para capturar y procesar audio en tiempo real
 def capture_audio_and_predict():
@@ -36,7 +37,7 @@ def capture_audio_and_predict():
     FORMAT = pyaudio.paInt16
     CHANNELS = 1
     RATE = 22050
-    RECORD_SECONDS = 4
+    RECORD_SECONDS = 3
 
     p = pyaudio.PyAudio()
 
