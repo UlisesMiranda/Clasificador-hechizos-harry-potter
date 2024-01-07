@@ -50,12 +50,14 @@ def predict_audio(audio_file):
 
     print(f"Hechizo predicho: {predicted_spell}")
     print(f"Porcentaje de confianza: {confidence:.2f}%")
+    
+    return predicted_spell
 
-# Obtener la lista de archivos en la carpeta raíz del proyecto
-audio_files = [file for file in os.listdir() if file.endswith('.wav')]
+# # Obtener la lista de archivos en la carpeta raíz del proyecto
+# audio_files = [file for file in os.listdir() if file.endswith('.wav')]
 
-# Iterar sobre cada archivo y hacer una predicción
-for audio_file in audio_files:
-    print(f"Prediciendo el archivo: {audio_file}")
-    predict_audio(audio_file)
-    print("=" * 50)
+# # Iterar sobre cada archivo y hacer una predicción
+# for audio_file in audio_files:
+#     print(f"Prediciendo el archivo: {audio_file}")
+#     predict_audio(audio_file)
+#     print("=" * 50)
