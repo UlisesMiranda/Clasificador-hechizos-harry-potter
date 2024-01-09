@@ -140,3 +140,11 @@ canvas.create_text(
 )
 window.resizable(False, False)
 window.mainloop()
+
+carpeta_a_borrar = 'pruebas_audios'
+
+# Eliminar todos los archivos de la carpeta
+for archivo in os.listdir(carpeta_a_borrar):
+    ruta_completa = os.path.join(carpeta_a_borrar, archivo)
+    if os.path.isfile(ruta_completa):
+        os.remove(ruta_completa)
