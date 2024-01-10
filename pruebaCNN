@@ -1,22 +1,16 @@
 import os
-import numpy as np
-from sklearn.model_selection import train_test_split
-import keras
-from scipy.io import wavfile
-import librosa
-from keras.models import Sequential
-from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from imblearn.over_sampling import RandomOverSampler
 from collections import Counter
-from keras.regularizers import l2
 
-# Directorio que contiene los datos de audio WAV
-data_dir = 'audios/'
-
-import os
-import numpy as np
-from scipy.io import wavfile
+import keras
 import librosa
+import numpy as np
+from imblearn.over_sampling import RandomOverSampler
+from keras.layers import Conv2D, Dense, Dropout, Flatten, MaxPooling2D
+from keras.models import Sequential
+from keras.regularizers import l2
+from scipy.io import wavfile
+from sklearn.model_selection import train_test_split
+
 
 def load_data(data_dir, max_length_time=2, max_length_mfcc=128):
     X = []
@@ -42,10 +36,9 @@ def load_data(data_dir, max_length_time=2, max_length_mfcc=128):
                 start = (len(audio) - max_length) // 2
                 audio = audio[start:start + max_length]
                 
-            audio = audio.astype(np.float32)  # Convertir a float32 para normalización
-            audio /= np.max(np.abs(audio))  # Normalizar entre -1 y 1
+            audio = audio.astype(np.float32) 
+            # audio /= np.max(np.abs(audio))  # Normalizar entre -1 y 1
 
-            # Extraer coeficientes MFCC
             mfcc = librosa.feature.mfcc(y=audio, sr=rate, n_mfcc=max_length_mfcc)
             mfcc = mfcc.astype(np.float32)
 
@@ -54,7 +47,7 @@ def load_data(data_dir, max_length_time=2, max_length_mfcc=128):
                 pad_width = max_length_mfcc - mfcc.shape[1]
                 mfcc = np.pad(mfcc, ((0, 0), (0, pad_width)), mode='constant')
             else:
-                mfcc = mfcc[:, :max_length_mfcc]  # Acortar si es más largo
+                mfcc = mfcc[:, :max_length_mfcc]
 
             X.append(mfcc)
             y.append(label_id)
@@ -67,15 +60,12 @@ def load_data(data_dir, max_length_time=2, max_length_mfcc=128):
 
     return X, y
 
-
+# Directorio que contiene los datos de audio WAV
+data_dir = 'audios/'
 
 X, y = load_data(data_dir)
 
-# Dividir datos en conjuntos de entrenamiento y prueba
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=89)
-
-
-print(Counter(y_train))
 
 model = Sequential([
     Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 1)),
@@ -90,17 +80,14 @@ model = Sequential([
     Dense(6, activation='softmax')
 ]) 
 
-# Compilación del modelo
 model.compile(optimizer='adam',
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
 
-# Entrenamiento del modelo
 history = model.fit(X_train, y_train, epochs=20, batch_size=32, validation_split=0.2)
 
-# Evaluación del modelo en datos de prueba
 test_loss, test_accuracy = model.evaluate(X_test, y_test)
 print(f'Loss en datos de prueba: {test_loss}')
 print(f'Precisión en datos de prueba: {test_accuracy}')
 
-model.save('modeloPrueba.h5')
+model.save('modeloPruebaSinFloat.h5')

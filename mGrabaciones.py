@@ -23,6 +23,3 @@ def grabar_audio_dir(ruta_carpeta, duracion_segundos=3, frecuencia_muestreo=4410
     print(f"Audio guardado en: {ruta_archivo}")
     
     return ruta_archivo
-
-# ruta_carpeta_grabaciones = "grabaciones de prueba"
-# grabar_audio(ruta_carpeta_grabaciones)
