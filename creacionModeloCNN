@@ -1,0 +1,89 @@
+import os
+from collections import Counter
+
+import keras
+import librosa
+import numpy as np
+from imblearn.over_sampling import RandomOverSampler
+from keras.layers import Conv2D, Dense, Dropout, Flatten, MaxPooling2D
+from keras.models import Sequential
+from keras.regularizers import l2
+from scipy.io import wavfile
+from sklearn.model_selection import train_test_split
+
+
+def load_data(data_dir, max_length_time=2, max_length_mfcc=128):
+    X = []
+    y = []
+
+    labels = sorted(os.listdir(data_dir))
+
+    for label_id, label in enumerate(labels):
+        label_dir = os.path.join(data_dir, label)
+        files = os.listdir(label_dir)
+        np.random.shuffle(files)
+
+        train_files = files
+
+        for audio_file in train_files:
+            audio_path = os.path.join(label_dir, audio_file)
+            rate, audio = wavfile.read(audio_path)
+            audio = audio[:, 0]
+
+            # Limitar la longitud de la señal al máximo deseado (2 segundos en este caso)
+            max_length = int(rate * max_length_time)
+            if len(audio) > max_length:
+                start = (len(audio) - max_length) // 2
+                audio = audio[start:start + max_length]
+                
+            audio = audio.astype(np.float32) 
+
+            mfcc = librosa.feature.mfcc(y=audio, sr=rate, n_mfcc=max_length_mfcc)
+            mfcc = mfcc.astype(np.float32)
+
+            # Ajustar la longitud de los MFCC
+            if mfcc.shape[1] < max_length_mfcc:
+                pad_width = max_length_mfcc - mfcc.shape[1]
+                mfcc = np.pad(mfcc, ((0, 0), (0, pad_width)), mode='constant')
+            else:
+                mfcc = mfcc[:, :max_length_mfcc]
+
+            X.append(mfcc)
+            y.append(label_id)
+
+    X = np.array(X)
+    y = np.array(y)
+
+    return X, y
+
+# Directorio que contiene los datos de audio WAV
+data_dir = 'audios/'
+
+X, y = load_data(data_dir)
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=89)
+
+model = Sequential([
+    Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 1)),
+    MaxPooling2D((2, 2)),
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Conv2D(128, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Flatten(),
+    Dense(128, activation='relu', kernel_regularizer=l2(0.001)),
+    Dropout(0.5),
+    Dense(6, activation='softmax')
+]) 
+
+model.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+history = model.fit(X_train, y_train, epochs=20, batch_size=32, validation_split=0.2)
+
+test_loss, test_accuracy = model.evaluate(X_test, y_test)
+print(f'Loss en datos de prueba: {test_loss}')
+print(f'Precisión en datos de prueba: {test_accuracy}')
+
+model.save('modeloPrueba2.h5')

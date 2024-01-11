@@ -3,7 +3,7 @@ from scipy.io.wavfile import write
 import os
 from datetime import datetime
 
-def grabar_audio_dir(ruta_carpeta, duracion_segundos=3, frecuencia_muestreo=44100):
+def grabar_audio_dir(ruta_carpeta, duracion_segundos=2, frecuencia_muestreo=48000):
     if not os.path.exists(ruta_carpeta):
         os.makedirs(ruta_carpeta)
 
